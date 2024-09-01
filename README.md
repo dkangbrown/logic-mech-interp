@@ -1,3 +1,5 @@
+Past research by Alyssa I am building on top off:
+
 # LLMs Demonstrate Human-like Rule-Learning Without Built-in Symbolic Structure
 Alyssa Loo, Ellie Pavlick, Roman Feiman
 
