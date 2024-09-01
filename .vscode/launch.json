@@ -1,0 +1,11 @@
+{
+    "launch": {
+        "configurations": [
+            {           
+            "env": {
+                "HF_TOKEN": "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"
+            }
+        }
+        ]
+    }
+}
