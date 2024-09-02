@@ -136,13 +136,11 @@ if __name__ == "__main__":
     import datasets
     from datasets.utils.logging import disable_progress_bar
     # from utils.get_api_keys import HF_TOKEN
-    HF_TOKEN = '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'
     disable_progress_bar()
 
 
     timestamp =  str(time.time()).split(".")[0][-5:]
 
-    os.environ['HF_TOKEN'] = HF_TOKEN
     os.environ['TRANSFORMERS_CACHE'] = '/oscar/scratch/aloo1/model_cache_2'
     os.environ["CUDA_VISIBLE_DEVICES"]="0,1"
 
