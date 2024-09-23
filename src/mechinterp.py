@@ -1,6 +1,7 @@
 import os; os.environ["ACCELERATE_DISABLE_RICH"] = "1"
 import sys
 # from dotenv import load_dotenv
+import gc
 from pathlib import Path
 import torch as t
 from torch import Tensor
@@ -154,7 +155,9 @@ def residual_stack_to_logit_diff(
     '''
     # SOLUTION
     batch_size = residual_stack.size(-2)
-    scaled_residual_stack = cache.apply_ln_to_stack(residual_stack, layer=-1, pos_slice=-1)
+    print("performing ln to stack")
+    scaled_residual_stack = cache.apply_ln_to_stack(residual_stack, layer=-1, pos_slice=-1).cpu()
+    print("performing einops")
     return einops.einsum(
         scaled_residual_stack, logit_diff_directions,
         "... batch d_model, batch d_model -> ..."
@@ -167,6 +170,8 @@ def display_logit_attr(cache, logit_diff_directions):
 
     logit_lens_logit_diffs: Float[Tensor, "component"] = residual_stack_to_logit_diff(accumulated_residual, cache, logit_diff_directions)
 
+    print("performing display")
+
     logit_diff_accum = px.line(
         logit_lens_logit_diffs,
         # hovermode="x unified",
@@ -176,7 +181,11 @@ def display_logit_attr(cache, logit_diff_directions):
         width=800
     )
 
-    logit_diff_accum.show()
+    print("done calculating display")
+
+    logit_diff_accum.write_image("images/logit_diff_accum.png")
+
+    print("done showing")
 
     per_layer_residual, labels = cache.decompose_resid(layer=-1, pos_slice=-1, return_labels=True)
     per_layer_logit_diffs = residual_stack_to_logit_diff(per_layer_residual, cache, logit_diff_directions)
@@ -190,7 +199,7 @@ def display_logit_attr(cache, logit_diff_directions):
         width=800
     )
 
-    logit_diff_layer.show()
+    logit_diff_layer.write_image("images/logit_diff_layer.png")
 
     per_head_residual, labels = cache.stack_head_results(layer=-1, pos_slice=-1, return_labels=True)
     per_head_residual = einops.rearrange(
@@ -207,7 +216,7 @@ def display_logit_attr(cache, logit_diff_directions):
         width=600
     )
 
-    logit_diff_head.show()
+    logit_diff_head.write_image("images/logit_diff_head.png")
 
 def topk_of_Nd_tensor(tensor: Float[Tensor, "rows cols"], k: int):
     '''
@@ -269,7 +278,8 @@ def residual_patching(model, device, tokens, prompts):
     print('calculating tokens')
     corrupted_tokens = model.to_tokens(corrupted_prompts,padding_side='left')
     print('done calculating tokens')
-    tokens = tokens.to(device)
+    clean_tokens = clean_tokens.to(device)
+    corrupted_tokens = corrupted_tokens.to(device)
     print('done moving tokens')
 
     print(
@@ -279,6 +289,9 @@ def residual_patching(model, device, tokens, prompts):
 
     print(len(clean_tokens))
     print(len(corrupted_tokens))
+
+    gc.collect()
+    t.cuda.empty_cache()
 
     print("Starting to run with cache")
     clean_logits, clean_cache = model.run_with_cache(clean_tokens)
@@ -299,8 +312,17 @@ def residual_patching(model, device, tokens, prompts):
 if __name__ == "__main__":
 
     os.environ["HF_TOKEN"] = "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"
-    login(token=os.getenv("HF_TOKEN"), add_to_git_credential=True)
+    login(token=os.getenv("HF_TOKEN"), add_to_git_credential=False)
 
+    print(t.version.cuda)
+
+    if t.cuda.is_available():
+        print("cuda")
+    else:
+        print("cpu")
+
+    print(t.cuda.get_device_name(0))
+        
     device = t.device("cuda") if t.cuda.is_available() else t.device("cpu")
 
     MAIN = __name__ == "__main__"
@@ -349,7 +371,8 @@ if __name__ == "__main__":
     print(f"Logit difference directions shape:", logit_diff_directions.shape)
 
     # Print three images: accumulated logit diff, effect of each layer on logit diff, effect of each head on logit diff
-    display_logit_attr(cache, logit_diff_directions)
+    display_logit_attr(cache, logit_diff_directions.cpu())
+    tokens = tokens.to(device)
 
     clean_logit_diff, clean_tokens, corrupted_logit_diff, corrupted_tokens, clean_cache = residual_patching(model, device, tokens, prompts)
 
@@ -389,7 +412,7 @@ if __name__ == "__main__":
             x=labels,
             title="resid_pre Activation Patching",
             width=600
-        )
+        ).write_image("images/residual_patching.png")
 
     def display_layer_patching():
         act_patch_block_every = patching.get_act_patch_block_every(model, corrupted_tokens, clean_cache, patch_metric)
@@ -404,11 +427,7 @@ if __name__ == "__main__":
             title="Logit Difference From Patched Attn Head Output",
             labels={"x": "Sequence Position", "y": "Layer"},
             width=1000,
-        )
+        ).write_image("images/layer_patching.png")
     
     display_residual_patching()
     display_layer_patching()
-
-
-
-    
