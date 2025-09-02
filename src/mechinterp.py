@@ -310,8 +310,7 @@ def residual_patching(model, device, tokens, prompts):
     return clean_logit_diff, clean_tokens, corrupted_logit_diff, corrupted_tokens, clean_cache
 
 if __name__ == "__main__":
-
-    os.environ["HF_TOKEN"] = "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"
+    
     login(token=os.getenv("HF_TOKEN"), add_to_git_credential=False)
 
     print(t.version.cuda)
